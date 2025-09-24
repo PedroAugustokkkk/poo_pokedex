@@ -18,34 +18,35 @@ class Pokemon:
         self.imagem_url = None
         self.stats = {}
 
-    # Este método busca os detalhes completos do Pokémon na API usando a URL armazenada.
+# Este método busca os detalhes completos do Pokémon na API usando a URL armazenada.
+# Dentro da classe Pokemon
+
     def detalhes_busca(self):
         try:
+            response = requests.get(self.url)
+            response.raise_for_status()
+            data = response.json()
             
-            response = requests.get(self.url) # Faz a requisição GET para a URL do Pokémon.
-            response.raise_for_status() # Verifica se a requisição foi bem-sucedida (código 200).
-            data = response.json()  # Converte a resposta JSON em um dicionário Python.
+            self.id = data.get('id')
+            self.altura = data.get('height', 0) / 10
+            self.peso = data.get('weight', 0) / 10
 
-            # Extrai e atribui os dados do dicionário para os atributos do nosso objeto.
-            self.id = data['id'] # Pega o ID da Pokédex.
-            self.altura = data['height'] / 10 # A API retorna em decímetros, dividimos por 10 para ter em metros.
-            self.peso = data['weight'] / 10 # A API retorna em hectogramas, dividimos por 10 para ter em quilogramas.
-            self.imagem_url = data['sprites']['other']['official-artwork']['front_default'] # Pega a URL da imagem oficial.
+            sprites_data = data.get('sprites', {})
+            other_data = sprites_data.get('other', {})
+            artwork_data = other_data.get('official-artwork', {})
+            self.imagem_url = artwork_data.get('front_default')
 
-            # Extrai os tipos. É uma lista, então percorremos e pegamos o nome de cada tipo.
-            self.tipos = [t['type']['name'].title() for t in data['types']]
-            # Extrai as habilidades. Também é uma lista, fazemos o mesmo processo.
-            self.habilidades = [a['ability']['name'].title() for a in data['abilities']]
+            # O mesmo princípio para as outras listas:
+            self.tipos = [t['type']['name'].title() for t in data.get('types', [])]
+            self.habilidades = [a['ability']['name'].title() for a in data.get('abilities', [])]
 
-            # Extrai os status (HP, Attack, etc.). Percorremos a lista e guardamos num dicionário.
-            for stat in data['stats']:
-                stat_name = stat['stat']['name'].replace('-', ' ').title() # Formata o nome do status.
-                base_stat = stat['base_stat'] # Pega o valor base do status.
-                self.stats[stat_name] = base_stat # Adiciona ao dicionário de stats.
+            self.stats = {}
+            for stat in data.get('stats', []):
+                stat_name = stat['stat']['name'].replace('-', ' ').title()
+                base_stat = stat['base_stat']
+                self.stats[stat_name] = base_stat
 
-        # Trata possíveis erros na requisição HTTP.
         except requests.exceptions.RequestException as e:
-            # Se der erro, exibimos uma mensagem de erro no Streamlit.
             st.error(f"Erro ao buscar detalhes do Pokémon: {e}")
 
 # função especifica do streamlit que guarda o resultado em cache para evitar chamadas repetidas
@@ -134,4 +135,5 @@ if lista_pokemon:
                 # Escreve o nome do status.
                 st.text(stat_nome)
                 # Cria a barra de progresso.
+
                 st.progress(stat_valor / 255)
