@@ -75,7 +75,7 @@ class Pokemon:
 # Função para buscar a lista dos 151 Pokémons (com cache para não recarregar toda hora).
 @st.cache_data
 def get_pokemon_list():
-    url = f"{BASE_URL}?limit=151"
+    url = f"{BASE_URL}?limit=1025"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -133,3 +133,4 @@ if pokemon_list:
         st.text(stat_name)
         # A barra de progresso vai de 0 a 1. Dividimos por 255 (um valor máximo comum para status).
         st.progress(stat_value / 255)
+
