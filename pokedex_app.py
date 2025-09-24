@@ -1,45 +1,64 @@
 import streamlit as st
 import requests
 
-# Define a URL base da PokéAPI. Todas as nossas buscas de dados partirão daqui.
+# URL base da API.
 BASE_URL = "https://pokeapi.co/api/v2/pokemon/"
 
-# Definimos a classe Pokemon, que servirá como um molde para criar objetos de cada Pokémon.
 class Pokemon:
-    def __init__(self, nome, url):
-        self.nome = nome.title() # Nome do Pokemon, com a primeira letra maiúscula.
-        self.url = url # url (link) específico daquele Pokemon.
-        # Inicializa os outros atributos como None. Eles serão preenchidos depois pelo método fetch_details.
-        self.id = None # ID na Pokédex.
-        self.tipos = [] # tipo dele (fogo, agua/fogo e agua e etc)
-        self.habilidades = [] # habilidades especificas daquele pokemon 
+    # O construtor é chamado quando criamos um novo objeto Pokemon.
+    def __init__(self, name, url):
+        # Armazena o nome e a URL.
+        self.name = name.title()
+        self.url = url
+        # Inicializamos todos os outros atributos como None (nulo).
+        # Eles serão preenchidos pelo método fetch_details.
+        self.id = None
+        self.tipos = []
+        self.habilidades = []
         self.altura = None
         self.peso = None
-        self.imagem_url = None
+        self.imagem_url = None # Atributo para a URL da imagem.
         self.stats = {}
 
-# Este método busca os detalhes completos do Pokémon na API usando a URL armazenada.
-# Dentro da classe Pokemon
+    # Método para buscar todos os detalhes do Pokémon na API.
+    def fetch_details(self):
+        # ----- PONTO DE VERIFICAÇÃO 1 -----
+        # Este print aparecerá no seu terminal.
+        print(f"--- Buscando dados para: {self.name} ---")
 
-    def detalhes_busca(self):
         try:
+            # Faz a requisição para a API.
             response = requests.get(self.url)
+            # Verifica se a requisição deu certo.
             response.raise_for_status()
+            # Converte a resposta para o formato JSON (dicionário Python).
             data = response.json()
-            
+
+            # Extração segura dos dados. .get() evita erros se a chave não existir.
             self.id = data.get('id')
             self.altura = data.get('height', 0) / 10
             self.peso = data.get('weight', 0) / 10
 
-            sprites_data = data.get('sprites', {})
-            other_data = sprites_data.get('other', {})
-            artwork_data = other_data.get('official-artwork', {})
-            self.imagem_url = artwork_data.get('front_default')
+            # --- Extração segura e verificada da IMAGEM ---
+            # Navegamos passo a passo, usando .get() com um dicionário vazio {} como padrão.
+            sprites = data.get('sprites', {})
+            other = sprites.get('other', {})
+            official_artwork = other.get('official-artwork', {})
+            # A URL final. Se qualquer passo anterior falhar, o resultado será None.
+            url_encontrada = official_artwork.get('front_default')
 
-            # O mesmo princípio para as outras listas:
+            self.imagem_url = url_encontrada
+
+            # ----- PONTO DE VERIFICAÇÃO 2 -----
+            # Este print nos dirá se a URL foi encontrada ou não.
+            print(f"URL da Imagem: {self.imagem_url}")
+
+            # Extrai os tipos, usando uma lista vazia [] como padrão.
             self.tipos = [t['type']['name'].title() for t in data.get('types', [])]
+            # Extrai as habilidades.
             self.habilidades = [a['ability']['name'].title() for a in data.get('abilities', [])]
 
+            # Extrai os status.
             self.stats = {}
             for stat in data.get('stats', []):
                 stat_name = stat['stat']['name'].replace('-', ' ').title()
@@ -47,93 +66,70 @@ class Pokemon:
                 self.stats[stat_name] = base_stat
 
         except requests.exceptions.RequestException as e:
-            st.error(f"Erro ao buscar detalhes do Pokémon: {e}")
+            st.error(f"Erro de rede ao buscar {self.name}: {e}")
+        except Exception as e:
+            # Captura qualquer outro erro que possa ocorrer durante a extração dos dados.
+            st.error(f"Erro ao processar os dados de {self.name}: {e}")
+            print(f"OCORREU UM ERRO AO PROCESSAR {self.name}: {e}")
 
-# função especifica do streamlit que guarda o resultado em cache para evitar chamadas repetidas
+# Função para buscar a lista dos 151 Pokémons (com cache para não recarregar toda hora).
 @st.cache_data
-def pegar_lista_pokemon():
-    url = f"{BASE_URL}?limit=151" # aqui definimos que são apenas 151 Pokemons
+def get_pokemon_list():
+    url = f"{BASE_URL}?limit=151"
     try:
-        response = requests.get(url) # Faz a requisição para a API.
-        response.raise_for_status() # Verifica se a requisição foi bem-sucedida.
-        data = response.json() # Converte o JSON em um dicionário.
-        return data['results'] # Retorna a lista de resultados, que contém o nome e a URL de cada Pokémon.
-    
-    except requests.exceptions.RequestException as e: # Trata possíveis erros na requisição.
-        st.error(f"Erro ao buscar a lista de Pokémons: {e}") # Exibe um erro no Streamlit
-        return [] # retorna lista vazia
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return data['results']
+    except requests.exceptions.RequestException as e:
+        st.error(f"Não foi possível carregar a lista de Pokémons da API. Verifique sua conexão. Erro: {e}")
+        return []
 
-# Configura o título da página e o ícone que aparecem na aba do navegador.
+# Configurações da página.
 st.set_page_config(page_title="Pokédex", page_icon="🔴")
+st.title("Pokédex - Kanto")
 
-# Define o título principal da aplicação que será exibido na página.
-st.title("Pokédex - Os 151 Originais")
-st.markdown("Aplicação feita com Python, POO e Streamlit, consumindo a [PokéAPI](https://pokeapi.co/).")
+# Carrega a lista de Pokémons.
+pokemon_list = get_pokemon_list()
 
-# Chama a função para obter a lista de Pokémons. O resultado virá do cache se já tiver sido chamado antes.
-lista_pokemon = pegar_lista_pokemon()
+if pokemon_list:
+    # Cria a lista de nomes para o seletor.
+    pokemon_names = [f"{i+1} - {p['name'].title()}" for i, p in enumerate(pokemon_list)]
+    
+    # Cria o seletor na barra lateral.
+    selected_pokemon_name = st.sidebar.selectbox("Escolha um Pokémon:", pokemon_names)
 
-# Verifica se a lista de Pokémons não está vazia.
-if lista_pokemon:
-    nome_pokemon = [f"{i+1} - {p['name'].title()}" for i, p in enumerate(lista_pokemon)] # exibe numero e pokemon
-    # Cria um seletor (selectbox) na barra lateral (sidebar) com a lista de nomes que criamos.
-    nome_selecionado = st.sidebar.selectbox("Escolha um Pokémon:", nome_pokemon)
-    # Encontra o índice (posição) do Pokémon selecionado na lista.
-    selected_index = nome_pokemon.index(nome_selecionado)
-    # Pega o dicionário do Pokémon selecionado (contendo nome e url) da lista original.
-    dados_pokemon = lista_pokemon[selected_index]
-    # Cria uma instância (objeto) da nossa classe Pokemon com os dados do Pokémon selecionado.
-    # Aqui a mágica da POO acontece: transformamos os dados brutos em um objeto estruturado.
-    pokemon = Pokemon(dados_pokemon['name'], dados_pokemon['url'])
-    # Chama o método para buscar todos os detalhes deste Pokémon na API.
-    pokemon.detalhes_busca()
+    # Acha os dados do Pokémon selecionado.
+    selected_index = pokemon_names.index(selected_pokemon_name)
+    selected_pokemon_data = pokemon_list[selected_index]
 
-    # Agora, usamos os atributos do nosso objeto 'pokemon' para exibir as informações.
+    # Cria o objeto Pokemon e busca seus detalhes.
+    pokemon = Pokemon(selected_pokemon_data['name'], selected_pokemon_data['url'])
+    pokemon.fetch_details()
 
-    # Divide a tela em duas colunas para organizar melhor a imagem e as informações básicas.
-    col1, col2 = st.columns([1, 2]) # A coluna 2 será duas vezes maior que a 1.
+    # Organiza a exibição em colunas.
+    col1, col2 = st.columns([1, 2])
 
-    # Bloco 'with' para a primeira coluna.
     with col1:
-        # Verifica se a URL da imagem foi encontrada.
-        if pokemon.image_url:
-            # Exibe a imagem do Pokémon.
-            st.image(pokemon.image_url, caption=pokemon.name)
+        # Só tenta mostrar a imagem se a URL não for nula (None).
+        if pokemon.imagem_url:
+            st.image(pokemon.imagem_url, caption=pokemon.name)
+        else:
+            # Mensagem de aviso se não encontrar a imagem.
+            st.warning("Imagem não disponível.")
 
-    # Bloco 'with' para a segunda coluna.
     with col2:
-        # Exibe o nome e o ID do Pokémon como um subtítulo.
-        st.subheader(f"{pokemon.nome} #{pokemon.id:03d}") # O :03d formata o número para ter sempre 3 dígitos (ex: 001).
-        # Junta a lista de tipos em uma única string, separada por " / ".
-        st.write(f"**Tipo:** {', '.join(pokemon.tipos)}")
-        # Exibe a altura e o peso.
+        # Exibe as informações básicas.
+        st.subheader(f"{pokemon.name} #{pokemon.id:03d}")
+        st.write(f"**Tipos:** {', '.join(pokemon.tipos)}")
         st.write(f"**Altura:** {pokemon.altura} m")
         st.write(f"**Peso:** {pokemon.peso} kg")
-        # Junta a lista de habilidades em uma única string.
         st.write(f"**Habilidades:** {', '.join(pokemon.habilidades)}")
 
-
-    # Cria um subtítulo para a seção de status.
+    # Exibe os status base.
     st.subheader("Status Base")
-
-    # Divide a área de status em duas colunas para não ficar muito comprida.
-    stat_col1, stat_col2 = st.columns(2)
-
-    # Itera sobre os itens (nome do status, valor) no dicionário de stats.
-    # O `items()` nos dá tanto a chave quanto o valor a cada iteração.
-    for i, (stat_nome, stat_valor) in enumerate(pokemon.stats.items()):
-        # Se o índice for par, coloca o status na primeira coluna.
-        if i % 2 == 0:
-            with stat_col1:
-                # Escreve o nome do status.
-                st.text(stat_nome)
-                # Cria uma barra de progresso para visualizar o valor do status. O valor máximo na API é geralmente em torno de 255.
-                st.progress(stat_valor / 255)
-        # Se o índice for ímpar, coloca na segunda coluna.
-        else:
-            with stat_col2:
-                # Escreve o nome do status.
-                st.text(stat_nome)
-                # Cria a barra de progresso.
-
-                st.progress(stat_valor / 255)
+    # Itera sobre os status e os exibe.
+    for stat_name, stat_value in pokemon.stats.items():
+        st.text(stat_name)
+        # A barra de progresso vai de 0 a 1. Dividimos por 255 (um valor máximo comum para status).
+        st.progress(stat_value / 255)
